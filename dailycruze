@@ -1,0 +1,71 @@
+import { useState, useEffect } from "react";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+
+// Mock da "cruzadinha" diária
+const puzzles = {
+  easy: {
+    clue: "Animal que mia",
+    answer: "GATO",
+  },
+  medium: {
+    clue: "Planeta conhecido como planeta vermelho",
+    answer: "MARTE",
+  },
+  hard: {
+    clue: "Capital da Islândia",
+    answer: "REYKJAVIK",
+  },
+};
+
+export default function DailyCrossword() {
+  const [difficulty, setDifficulty] = useState("easy");
+  const [dailyPuzzle, setDailyPuzzle] = useState(null);
+  const [input, setInput] = useState("");
+  const [result, setResult] = useState(null);
+
+  useEffect(() => {
+    // Determina o puzzle do dia baseado na data (mesma lógica para todos os usuários)
+    const dateKey = new Date().toISOString().slice(0, 10);
+    const difficulties = Object.keys(puzzles);
+    const index = new Date().getDate() % difficulties.length;
+    const chosen = puzzles[difficulties[index]];
+    setDifficulty(difficulties[index]);
+    setDailyPuzzle(chosen);
+  }, []);
+
+  function checkAnswer() {
+    if (!dailyPuzzle) return;
+    if (input.trim().toUpperCase() === dailyPuzzle.answer) {
+      setResult("✔ Acertou!");
+    } else {
+      setResult("✘ Errou! Tente novamente.");
+    }
+  }
+
+  if (!dailyPuzzle) return <div className="p-6 text-center">Carregando...</div>;
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6 bg-gray-100">
+      <Card className="p-6 max-w-lg w-full">
+        <CardContent>
+          <h1 className="text-3xl font-bold text-center mb-4">Cruzadinha do Dia</h1>
+          <p className="text-center text-gray-600 mb-2">Nível: {difficulty}</p>
+          <p className="text-xl text-center mb-6">{dailyPuzzle.clue}</p>
+
+          <input
+            type="text"
+            className="border p-2 rounded w-full mb-4"
+            placeholder="Resposta"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+          />
+
+          <Button className="w-full mb-4" onClick={checkAnswer}>Enviar</Button>
+
+          {result && <p className="text-center text-lg">{result}</p>}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
