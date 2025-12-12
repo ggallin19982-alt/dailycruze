@@ -1,0 +1,302 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Cruzadinha Diária</title>
+  <style>
+    :root{--bg:#0f1724;--card:#0b1220;--accent:#ff6b6b;--muted:#9aa4b2;--ok:#22c55e}
+    html,body{height:100%;margin:0;font-family:Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;color:#e6eef6;background:linear-gradient(180deg,#081028 0%, #071022 100%);}
+    .wrap{max-width:1000px;margin:36px auto;padding:24px}
+    header{display:flex;justify-content:space-between;align-items:center;margin-bottom:18px}
+    h1{margin:0;font-size:22px}
+    .card{background:rgba(255,255,255,0.02);padding:18px;border-radius:12px;box-shadow:0 6px 18px rgba(2,6,23,0.6)}
+    .controls{display:flex;gap:8px;align-items:center}
+    select,button{padding:8px 10px;border-radius:8px;background:#071424;border:1px solid rgba(255,255,255,0.04);color:#e6eef6}
+    .grid-wrap{display:flex;gap:20px;margin-top:18px}
+    .grid{display:grid;grid-template-columns:repeat(var(--cols),34px);grid-auto-rows:34px;gap:4px}
+    .cell{width:34px;height:34px;background:#071328;border-radius:6px;display:flex;align-items:center;justify-content:center;position:relative}
+    .cell input{width:100%;height:100%;text-align:center;background:transparent;border:0;color:#e6eef6;font-weight:600;font-size:16px;outline:none}
+    .cell.block{background:#081922}
+    .number{position:absolute;left:4px;top:2px;font-size:10px;color:var(--muted)}
+    .clues{flex:1}
+    .clue{margin-bottom:8px}
+    .clue small{color:var(--muted);display:block}
+    .status{margin-top:12px;color:var(--muted)}
+    .hint{margin-left:8px;color:var(--accent);cursor:pointer}
+    footer{margin-top:18px;color:var(--muted);font-size:13px}
+    .row{display:flex;gap:10px;align-items:center}
+    .btn-primary{background:linear-gradient(90deg,var(--accent),#ff8f6b);border:0;padding:8px 12px;color:white;border-radius:8px}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header>
+      <h1>Cruzadinha Diária</h1>
+      <div class="controls card">
+        <div class="row">
+          <label for="level">Nível:</label>
+          <select id="level">
+            <option value="easy">Fácil</option>
+            <option value="medium">Médio</option>
+            <option value="hard">Difícil</option>
+          </select>
+          <button id="check" class="btn-primary">Checar</button>
+          <button id="reveal">Revelar</button>
+        </div>
+      </div>
+    </header>
+
+    <div class="card">
+      <div id="meta" class="row" style="justify-content:space-between">
+        <div>Palavra do dia: <strong id="puzzledate"></strong></div>
+        <div id="timeleft"></div>
+      </div>
+
+      <div class="grid-wrap">
+        <div id="grid" class="grid" style="--cols:7"></div>
+        <div class="clues">
+          <h3>Horizontais</h3>
+          <div id="across"></div>
+          <h3>Verticais</h3>
+          <div id="down"></div>
+          <div class="status" id="status">Selecione um nível e comece a jogar!</div>
+        </div>
+      </div>
+    </div>
+
+    <footer>Projeto simples pronto para deploy no Vercel: basta colocar este arquivo <code>index.html</code> na raiz do repositório. O jogo é determinístico por data (mesma cruzadinha para todos no mesmo dia).</footer>
+  </div>
+
+  <script>
+    // --- Banco de puzzles simples (pequenas 7x7) ---
+    // Cada puzzle: cols, rows, blocks: array of [r,c] blocked (0-based), entries: array of {num,row,col,dir,len,answer,clue}
+    const PUZZLES = {
+      easy: [
+        {
+          cols:7,rows:7,blocks:[[0,1],[0,5],[1,3],[2,0],[2,6],[4,0],[4,6],[6,1],[6,5]],
+          entries:[
+            {num:1,row:0,col:0,dir:'across',len:1,answer:'O',clue:'Vogal inicial'},
+            {num:2,row:0,col:2,dir:'across',len:3,answer:'SOL',clue:'Estrela do sistema'},
+            {num:3,row:0,col:6,dir:'down',len:3,answer:'RIO',clue:'Curso de água'},
+            {num:4,row:1,col:0,dir:'across',len:3,answer:'MAR',clue:'Grande massa de água salgada'},
+            {num:5,row:1,col:4,dir:'across',len:3,answer:'NUB',clue:'Nuvem (abreviada)'},
+            {num:6,row:2,col:1,dir:'down',len:4,answer:'LUAO',clue:'Lua grande (brincadeira)'},
+            {num:7,row:3,col:0,dir:'across',len:7,answer:'CRUZADE',clue:'Ação de cruzar (fictício para preencher)'.replace('CRUZADE','CRUZADA')},
+            {num:8,row:4,col:1,dir:'across',len:5,answer:'FLORA',clue:'Vegetação'},
+            {num:9,row:5,col:0,dir:'down',len:3,answer:'SOL',clue:'Quem aquece'},
+            {num:10,row:5,col:4,dir:'across',len:3,answer:'AMO',clue:'Verbo amar na 1ª pessoa'}
+          ]
+        },
+        // add a few more easy puzzles
+        {
+          cols:7,rows:7,blocks:[[0,2],[0,4],[1,5],[2,0],[2,6],[4,0],[4,6],[5,2],[5,4]],
+          entries:[
+            {num:1,row:0,col:0,dir:'across',len:2,answer:'PA',clue:'Pai (abreviação)'},
+            {num:2,row:0,col:3,dir:'across',len:1,answer:'A',clue:'Artigo'},
+            {num:3,row:0,col:5,dir:'down',len:4,answer:'RUAO',clue:'Rua grande (brincadeira)'},
+            {num:4,row:1,col:0,dir:'across',len:5,answer:'CASA',clue:'Lar'}.answer||{answer:'CASA'},
+            {num:5,row:2,col:1,dir:'down',len:3,answer:'SOL',clue:'Astro'}.answer||{},
+          ].filter(Boolean)
+        }
+      ],
+      medium: [
+        // medium puzzles
+        {
+          cols:7,rows:7,blocks:[[0,1],[0,3],[1,5],[2,2],[2,4],[4,2],[4,4],[5,1],[5,3]],
+          entries:[
+            {num:1,row:0,col:0,dir:'across',len:1,answer:'A',clue:'Primeira letra'},
+            {num:2,row:0,col:2,dir:'across',len:1,answer:'R',clue:'Nota musical'},
+            {num:3,row:0,col:4,dir:'down',len:4,answer:'GATO',clue:'Felino doméstico'},
+            {num:4,row:1,col:0,dir:'down',len:3,answer:'RIO',clue:'Curso d\'água'},
+            {num:5,row:2,col:0,dir:'across',len:7,answer:'PRAIA',clue:'Lugar de areia'}.answer||{answer:'PRAIA'}
+          ].filter(Boolean)
+        }
+      ],
+      hard: [
+        {
+          cols:7,rows:7,blocks:[[0,2],[0,4],[1,3],[2,0],[2,6],[3,2],[3,4],[4,0],[4,6]],
+          entries:[
+            {num:1,row:0,col:0,dir:'across',len:2,answer:'AZ',clue:'Cor (abreviação)'},
+            {num:2,row:0,col:3,dir:'down',len:4,answer:'NOITE',clue:'Período escuro'},
+            {num:3,row:1,col:0,dir:'across',len:5,answer:'FORCA',clue:'Poder'}
+          ]
+        }
+      ]
+    };
+
+    // A light parser/renderer
+    const gridEl = document.getElementById('grid');
+    const acrossEl = document.getElementById('across');
+    const downEl = document.getElementById('down');
+    const levelSelect = document.getElementById('level');
+    const checkBtn = document.getElementById('check');
+    const revealBtn = document.getElementById('reveal');
+    const statusEl = document.getElementById('status');
+    const puzzledate = document.getElementById('puzzledate');
+    const timeleft = document.getElementById('timeleft');
+
+    function getDateKey(){
+      // Use UTC date so it's the same worldwide for "day"
+      const now = new Date();
+      const yyyy = now.getUTCFullYear();
+      const mm = String(now.getUTCMonth()+1).padStart(2,'0');
+      const dd = String(now.getUTCDate()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function secondsUntilNextUTCmidnight(){
+      const now = new Date();
+      const tomorrow = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()+1));
+      return Math.floor((tomorrow - now)/1000);
+    }
+
+    function startTimer(){
+      function tick(){
+        const s = secondsUntilNextUTCmidnight();
+        const h = Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+        timeleft.textContent = `Renova em ${h}h ${m}m ${sec}s (UTC)`;
+      }
+      tick();
+      setInterval(tick,1000);
+    }
+
+    function pickPuzzle(level){
+      const list = PUZZLES[level];
+      if(!list || list.length===0) return null;
+      const key = getDateKey();
+      // simple hash: sum of char codes
+      let sum=0; for(let i=0;i<key.length;i++) sum+=key.charCodeAt(i);
+      const idx = sum % list.length;
+      return list[idx];
+    }
+
+    function buildGrid(pz){
+      gridEl.innerHTML='';
+      gridEl.style.setProperty('--cols', pz.cols);
+      // create 2D array
+      const cells = Array.from({length:pz.rows},()=>Array.from({length:pz.cols},()=>({block:false, inputs:[]})));
+      for(const b of pz.blocks) cells[b[0]][b[1]].block=true;
+      // prepare numbers
+      const numbering = {};
+      let numMap = {};
+      let counter=1;
+      function isStart(r,c,dir){
+        if(cells[r][c].block) return false;
+        if(dir==='across'){
+          return (c===0 || cells[r][c-1].block) && (c+1<pz.cols && !cells[r][c+1].block);
+        } else {
+          return (r===0 || cells[r-1][c].block) && (r+1<pz.rows && !cells[r+1][c].block);
+        }
+      }
+      // assign numbers based on entries provided to keep consistency
+      for(const e of pz.entries){
+        numMap[`${e.row},${e.col}`]=e.num;
+      }
+
+      for(let r=0;r<pz.rows;r++){
+        for(let c=0;c<pz.cols;c++){
+          const div = document.createElement('div');
+          div.className = 'cell';
+          if(cells[r][c].block) div.classList.add('block');
+          else{
+            const input = document.createElement('input');
+            input.maxLength=1;
+            input.dataset.r=r; input.dataset.c=c;
+            input.addEventListener('input', (ev)=>{ ev.target.value = ev.target.value.toUpperCase(); });
+            div.appendChild(input);
+          }
+          // number
+          const num = numMap[`${r},${c}`];
+          if(num){
+            const span = document.createElement('div'); span.className='number'; span.textContent=num; div.appendChild(span);
+          }
+          gridEl.appendChild(div);
+        }
+      }
+    }
+
+    function renderClues(pz){
+      acrossEl.innerHTML=''; downEl.innerHTML='';
+      for(const e of pz.entries){
+        const el = document.createElement('div'); el.className='clue';
+        el.innerHTML = `<strong>${e.num}</strong> <small>${e.dir}</small> ${e.clue} <span class="hint" data-num="${e.num}">[pista]</span>`;
+        if(e.dir==='across') acrossEl.appendChild(el); else downEl.appendChild(el);
+      }
+      // hint listeners
+      document.querySelectorAll('.hint').forEach(h=>h.addEventListener('click', ()=>{
+        const n = parseInt(h.dataset.num,10);
+        const e = pz.entries.find(x=>x.num===n);
+        if(e) alert(`Resposta (${e.num} ${e.dir}): ${e.answer}`);
+      }));
+    }
+
+    function fillAnswer(e, reveal=false){
+      const letters = e.answer.split('');
+      for(let i=0;i<e.len;i++){
+        let r=e.row, c=e.col;
+        if(e.dir==='across') c+=i; else r+=i;
+        const idx = r*pz.cols + c;
+        const cell = gridEl.children[idx];
+        if(cell && !cell.classList.contains('block')){
+          const input = cell.querySelector('input');
+          if(input){ input.value = reveal ? letters[i].toUpperCase() : input.value; }
+        }
+      }
+    }
+
+    let pz = null;
+
+    function render(level){
+      pz = pickPuzzle(level);
+      if(!pz){ statusEl.textContent='Puzzle não encontrado para esse nível.'; return; }
+      puzzledate.textContent = getDateKey();
+      buildGrid(pz);
+      renderClues(pz);
+      statusEl.textContent='Boa sorte!';
+      startTimer();
+    }
+
+    levelSelect.addEventListener('change', ()=> render(levelSelect.value));
+    checkBtn.addEventListener('click', ()=>{
+      if(!pz) return;
+      let total=0, correct=0;
+      for(const e of pz.entries){
+        total++;
+        let got='';
+        for(let i=0;i<e.len;i++){
+          let r=e.row, c=e.col; if(e.dir==='across') c+=i; else r+=i;
+          const idx = r*pz.cols + c; const cell = gridEl.children[idx];
+          const input = cell && cell.querySelector('input'); got += (input && input.value)?input.value.toUpperCase():' ';
+        }
+        if(got.replace(/\s/g,'') === e.answer.toUpperCase()) correct++; else {
+          // mark wrong cells briefly
+          for(let i=0;i<e.len;i++){
+            let r=e.row, c=e.col; if(e.dir==='across') c+=i; else r+=i;
+            const idx = r*pz.cols + c; const cell = gridEl.children[idx];
+            const input = cell && cell.querySelector('input'); if(input){ input.style.background='rgba(255,0,0,0.08)'; setTimeout(()=>input.style.background='transparent',800); }
+          }
+        }
+      }
+      statusEl.textContent = `Acertos: ${correct} / ${total}`;
+      if(correct===total) statusEl.textContent = 'Parabéns! Cruzadinha completa!';
+    });
+    revealBtn.addEventListener('click', ()=>{
+      if(!pz) return;
+      if(!confirm('Revelar todas as respostas?')) return;
+      for(const e of pz.entries){
+        const letters = e.answer.split('');
+        for(let i=0;i<e.len;i++){
+          let r=e.row, c=e.col; if(e.dir==='across') c+=i; else r+=i;
+          const idx = r*pz.cols + c; const cell = gridEl.children[idx];
+          const input = cell && cell.querySelector('input'); if(input){ input.value = letters[i].toUpperCase(); }
+        }
+      }
+      statusEl.textContent = 'Todas respostas reveladas.';
+    });
+
+    // initial render
+    render(levelSelect.value);
+  </script>
+</body>
+</html>
